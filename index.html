@@ -472,16 +472,12 @@
     const name    = p['Name']   || 'Unknown Set';
     const status  = (p['Status'] || '').toLowerCase();
     const sold    = status === 'sold';
-    const price   = p['Price']  || '';
+    
     const sources = getImgSources(legoNum);
     const sourcesEncoded = btoa(JSON.stringify(sources));
     const firstSrc = sources[0];
 
-    const priceHTML = price && price !== 'N/A' ? `
-      <div class="card-price">
-        <span class="price-value">${price}</span>
-        <span class="price-label">Price</span>
-      </div>` : '';
+   
 
     return `
       <div class="card" style="animation-delay:${idx * 40}ms">
@@ -495,7 +491,7 @@
         <div class="card-body">
           <div class="card-num">Set #${legoNum}</div>
           <div class="card-name">${name}</div>
-          ${priceHTML}
+          
           <div class="badge ${sold ? 'badge-sold' : 'badge-avail'}">
             <div class="badge-dot"></div>
             ${sold ? 'Sold Out' : 'Available'}
