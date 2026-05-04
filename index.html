@@ -411,7 +411,7 @@
   const SHEET_ID = '16nuvshe86YG9ahtfPUA6fjilMXxjupjTgODvjzZEves';
   const CSV_DIRECT = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
   const CSV_PROXY  = `https://corsproxy.io/?url=${encodeURIComponent(CSV_DIRECT)}`;
-  const IMG_BASE = 'https://img.bricklink.com/ItemImage/SN/0/';
+  const IMG_BASE = ''; // replaced by multi-source fallback
 
   let allProducts = [];
   let activeFilter = 'all';
@@ -436,18 +436,33 @@
     }).filter(r => r['LEGO#'] || r['Name']);
   }
 
+  function getImgSources(legoNum) {
+    // Brickset: public LEGO database, no hotlink/CORS issues
+    const bs1 = `https://images.brickset.com/sets/images/${legoNum}-1.jpg`;
+    const bs2 = `https://images.brickset.com/sets/small/${legoNum}-1.jpg`;
+    // Rebrickable via CORS proxy as fallback
+    const rb   = `https://corsproxy.io/?url=${encodeURIComponent(`https://cdn.rebrickable.com/media/sets/${legoNum}-1.jpg`)}`;
+    return [bs1, bs2, rb];
+  }
+
   function renderCard(p, idx) {
     const legoNum = p['LEGO#'] || '';
     const name    = p['Name']   || 'Unknown Set';
     const status  = (p['Status'] || '').toLowerCase();
     const sold    = status === 'sold';
-    const imgSrc  = `${IMG_BASE}${legoNum}.png`;
+    const sources = getImgSources(legoNum);
+    // Store as base64 to avoid quote escaping issues in HTML attribute
+    const sourcesEncoded = btoa(JSON.stringify(sources));
+    const firstSrc = sources[0];
 
     return `
       <div class="card" style="animation-delay:${idx * 40}ms">
         <div class="card-img">
-          <img src="${imgSrc}" alt="${name}" loading="lazy"
-               onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2212%22 fill=%22%23e8eaf0%22/%3E%3Ctext x=%2260%22 y=%2265%22 text-anchor=%22middle%22 font-size=%2236%22%3E🧱%3C/text%3E%3C/svg%3E'">
+          <img src="${firstSrc}" alt="${name}" loading="lazy"
+               referrerpolicy="no-referrer"
+               crossorigin="anonymous"
+               data-sources="${sourcesEncoded}" data-src-idx="0"
+               onerror="imgFallback(this)">
           ${sold ? `<div class="sold-overlay"><div class="sold-stamp">SOLD OUT</div></div>` : ''}
         </div>
         <div class="card-body">
@@ -459,6 +474,21 @@
           </div>
         </div>
       </div>`;
+  }
+
+  function imgFallback(img) {
+    try {
+      const sources = JSON.parse(atob(img.dataset.sources || btoa('[]')));
+      let idx = parseInt(img.dataset.srcIdx || '0') + 1;
+      if (idx < sources.length) {
+        img.dataset.srcIdx = idx;
+        img.onerror = () => imgFallback(img);
+        img.src = sources[idx];
+      } else {
+        img.onerror = null;
+        img.src = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="120" height="120" rx="12" fill="#e8eaf0"/><text x="60" y="72" text-anchor="middle" font-size="48">🧱</text></svg>')}`;
+      }
+    } catch(e) { img.onerror = null; }
   }
 
   function render() {
